@@ -334,7 +334,7 @@ const Leaderboard: React.FC = () => {
         </div>
         <div className="card card-body text-center">
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
-            {leaderboard.reduce((sum, entry) => sum + entry.total_games, 0)}
+            {leaderboard.reduce((sum, entry) => sum + Number(entry.total_games), 0)}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             Total Games
