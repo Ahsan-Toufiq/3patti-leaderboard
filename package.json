@@ -12,7 +12,8 @@
     "start": "cd backend && npm start"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "typescript": "^4.9.5"
   },
   "workspaces": [
     "frontend",
