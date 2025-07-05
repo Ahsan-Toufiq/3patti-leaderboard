@@ -150,8 +150,10 @@ export const analyticsApi = {
   },
 
   // Get player analytics
-  getPlayerAnalytics: async (playerId: number): Promise<PlayerAnalytics> => {
-    const response = await api.get<ApiResponse<PlayerAnalytics>>(`/api/analytics/player/${playerId}`);
+  getPlayerAnalytics: async (playerId: number, timeframe?: string): Promise<PlayerAnalytics> => {
+    const response = await api.get<ApiResponse<PlayerAnalytics>>(`/api/analytics/player/${playerId}`, {
+      params: timeframe ? { timeframe } : {},
+    });
     if (!response.data.data) {
       throw new Error('Player analytics not found');
     }
@@ -159,8 +161,10 @@ export const analyticsApi = {
   },
 
   // Get analytics overview
-  getOverview: async (): Promise<AnalyticsOverview> => {
-    const response = await api.get<ApiResponse<AnalyticsOverview>>('/api/analytics/overview');
+  getOverview: async (timeframe?: string): Promise<AnalyticsOverview> => {
+    const response = await api.get<ApiResponse<AnalyticsOverview>>('/api/analytics/overview', {
+      params: timeframe ? { timeframe } : {},
+    });
     if (!response.data.data) {
       throw new Error('Analytics overview not found');
     }

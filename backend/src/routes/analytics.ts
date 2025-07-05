@@ -57,6 +57,31 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
 router.get('/player/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const timeframe = req.query.timeframe as string || 'lifetime';
+    
+    // Build date filter based on timeframe
+    let dateFilter = '';
+    if (timeframe !== 'lifetime') {
+      switch (timeframe) {
+        case '7days':
+          dateFilter = 'AND g.date >= CURRENT_DATE - INTERVAL \'7 days\'';
+          break;
+        case '30days':
+          dateFilter = 'AND g.date >= CURRENT_DATE - INTERVAL \'30 days\'';
+          break;
+        case '90days':
+          dateFilter = 'AND g.date >= CURRENT_DATE - INTERVAL \'90 days\'';
+          break;
+        case '6months':
+          dateFilter = 'AND g.date >= CURRENT_DATE - INTERVAL \'6 months\'';
+          break;
+        case '1year':
+          dateFilter = 'AND g.date >= CURRENT_DATE - INTERVAL \'1 year\'';
+          break;
+        default:
+          dateFilter = '';
+      }
+    }
     
     // Get player info
     const playerResult = await pool.query(
@@ -71,7 +96,7 @@ router.get('/player/:id', async (req: Request, res: Response) => {
       });
     }
     
-    // Get monthly stats
+    // Get monthly stats (with timeframe filter)
     const monthlyStatsResult = await pool.query(`
       SELECT 
         TO_CHAR(g.date, 'YYYY-MM') as month,
@@ -81,25 +106,31 @@ router.get('/player/:id', async (req: Request, res: Response) => {
         MIN(pgr.position) as best_position
       FROM player_game_results pgr
       JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1
+      WHERE pgr.player_id = $1 ${dateFilter}
       GROUP BY TO_CHAR(g.date, 'YYYY-MM')
       ORDER BY month DESC
       LIMIT 12
     `, [id]);
     
-    // Get position distribution
+    // Get position distribution (with timeframe filter)
     const positionDistResult = await pool.query(`
       SELECT 
         position,
         COUNT(*) as count,
-        ROUND(COUNT(*)::decimal / (SELECT COUNT(*) FROM player_game_results WHERE player_id = $1) * 100, 2) as percentage
-      FROM player_game_results
-      WHERE player_id = $1
+        ROUND(COUNT(*)::decimal / (
+          SELECT COUNT(*) 
+          FROM player_game_results pgr2 
+          JOIN games g2 ON pgr2.game_id = g2.id 
+          WHERE pgr2.player_id = $1 ${dateFilter}
+        ) * 100, 2) as percentage
+      FROM player_game_results pgr
+      JOIN games g ON pgr.game_id = g.id
+      WHERE pgr.player_id = $1 ${dateFilter}
       GROUP BY position
       ORDER BY position
     `, [id]);
     
-    // Get recent performance (last 20 games)
+    // Get recent performance (last 20 games with timeframe filter)
     const recentPerfResult = await pool.query(`
       SELECT 
         g.date,
@@ -107,12 +138,23 @@ router.get('/player/:id', async (req: Request, res: Response) => {
         pgr.game_id
       FROM player_game_results pgr
       JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1
+      WHERE pgr.player_id = $1 ${dateFilter}
       ORDER BY g.date DESC, g.id DESC
       LIMIT 20
     `, [id]);
     
-    // Get performance trends (last 6 months by month)
+    // Get performance trends (with timeframe filter)
+    let trendsInterval = '6 months';
+    if (timeframe === '7days' || timeframe === '30days') {
+      trendsInterval = '30 days';
+    } else if (timeframe === '90days') {
+      trendsInterval = '90 days';
+    } else if (timeframe === '6months') {
+      trendsInterval = '6 months';
+    } else if (timeframe === '1year') {
+      trendsInterval = '12 months';
+    }
+    
     const performanceTrendsResult = await pool.query(`
       SELECT 
         TO_CHAR(g.date, 'YYYY-MM') as period,
@@ -121,8 +163,8 @@ router.get('/player/:id', async (req: Request, res: Response) => {
         SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END) as wins_count
       FROM player_game_results pgr
       JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1 
-        AND g.date >= CURRENT_DATE - INTERVAL '6 months'
+      WHERE pgr.player_id = $1 ${dateFilter}
+        ${timeframe === 'lifetime' ? '' : `AND g.date >= CURRENT_DATE - INTERVAL '${trendsInterval}'`}
       GROUP BY TO_CHAR(g.date, 'YYYY-MM')
       ORDER BY period DESC
     `, [id]);
@@ -154,7 +196,35 @@ router.get('/player/:id', async (req: Request, res: Response) => {
 // GET /api/analytics/overview - Get general analytics overview
 router.get('/overview', async (req: Request, res: Response) => {
   try {
-    // Get total stats
+    const timeframe = req.query.timeframe as string || 'lifetime';
+    
+    // Build date filter based on timeframe
+    let dateFilter = '';
+    let dateParams: any[] = [];
+    
+    if (timeframe !== 'lifetime') {
+      switch (timeframe) {
+        case '7days':
+          dateFilter = 'WHERE g.date >= CURRENT_DATE - INTERVAL \'7 days\'';
+          break;
+        case '30days':
+          dateFilter = 'WHERE g.date >= CURRENT_DATE - INTERVAL \'30 days\'';
+          break;
+        case '90days':
+          dateFilter = 'WHERE g.date >= CURRENT_DATE - INTERVAL \'90 days\'';
+          break;
+        case '6months':
+          dateFilter = 'WHERE g.date >= CURRENT_DATE - INTERVAL \'6 months\'';
+          break;
+        case '1year':
+          dateFilter = 'WHERE g.date >= CURRENT_DATE - INTERVAL \'1 year\'';
+          break;
+        default:
+          dateFilter = '';
+      }
+    }
+    
+    // Get total stats with timeframe filter
     const totalStatsResult = await pool.query(`
       SELECT 
         COUNT(DISTINCT p.id) as total_players,
@@ -165,15 +235,29 @@ router.get('/overview', async (req: Request, res: Response) => {
       FROM players p
       LEFT JOIN player_game_results pgr ON p.id = pgr.player_id
       LEFT JOIN games g ON pgr.game_id = g.id
+      ${dateFilter}
     `);
     
-    // Get games per month for the last 12 months
+    // Get games per month (adjust period based on timeframe)
+    let monthlyInterval = '12 months';
+    if (timeframe === '7days' || timeframe === '30days') {
+      monthlyInterval = '30 days';
+    } else if (timeframe === '90days') {
+      monthlyInterval = '3 months';
+    } else if (timeframe === '6months') {
+      monthlyInterval = '6 months';
+    } else if (timeframe === '1year') {
+      monthlyInterval = '12 months';
+    } else {
+      monthlyInterval = '24 months'; // For lifetime, show more history
+    }
+    
     const monthlyGamesResult = await pool.query(`
       SELECT 
         TO_CHAR(date, 'YYYY-MM') as month,
         COUNT(*) as games_count
       FROM games
-      WHERE date >= CURRENT_DATE - INTERVAL '12 months'
+      ${timeframe === 'lifetime' ? '' : `WHERE date >= CURRENT_DATE - INTERVAL '${monthlyInterval}'`}
       GROUP BY TO_CHAR(date, 'YYYY-MM')
       ORDER BY month DESC
     `);
@@ -189,19 +273,21 @@ router.get('/overview', async (req: Request, res: Response) => {
       ) as game_counts
     `);
     
-    // Get most active players
+    // Get most active players (with timeframe filter)
     const mostActiveResult = await pool.query(`
       SELECT 
         p.name,
         COUNT(pgr.id) as games_played
       FROM players p
       JOIN player_game_results pgr ON p.id = pgr.player_id
+      JOIN games g ON pgr.game_id = g.id
+      ${dateFilter}
       GROUP BY p.id, p.name
       ORDER BY games_played DESC
       LIMIT 5
     `);
     
-    // Get top performers by wins and consistency
+    // Get top performers by wins and consistency (with timeframe filter)
     const topPerformersResult = await pool.query(`
       SELECT 
         p.name,
@@ -211,6 +297,8 @@ router.get('/overview', async (req: Request, res: Response) => {
         ROUND((SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END)::decimal / COUNT(pgr.id) * 100), 1) as win_rate
       FROM players p
       JOIN player_game_results pgr ON p.id = pgr.player_id
+      JOIN games g ON pgr.game_id = g.id
+      ${dateFilter}
       GROUP BY p.id, p.name
       HAVING COUNT(pgr.id) >= 3
       ORDER BY win_rate DESC, wins DESC, avg_position ASC

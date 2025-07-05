@@ -13,6 +13,19 @@ import { analyticsApi, playersApi } from '../services/api';
 import { Player, PlayerAnalytics, AnalyticsOverview, TrendsData } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
+// Helper function to get readable timeframe label
+const getTimeframeLabel = (timeframe: string): string => {
+  switch (timeframe) {
+    case '7days': return 'Last 7 Days';
+    case '30days': return 'Last 30 Days';
+    case '90days': return 'Last 90 Days';
+    case '6months': return 'Last 6 Months';
+    case '1year': return 'Last Year';
+    case 'lifetime': return 'All Time';
+    default: return 'All Time';
+  }
+};
+
 const Analytics: React.FC = () => {
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [trends, setTrends] = useState<TrendsData[]>([]);
@@ -23,6 +36,43 @@ const Analytics: React.FC = () => {
   const [playerLoading, setPlayerLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [timeframe, setTimeframe] = useState<string>('lifetime');
+
+  const fetchAnalyticsData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await analyticsApi.getOverview(timeframe);
+      setOverview(data);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load analytics data');
+    } finally {
+      setLoading(false);
+    }
+  }, [timeframe]);
+
+  const fetchPlayers = async () => {
+    try {
+      const data = await playersApi.getAll();
+      setPlayers(data);
+    } catch (err) {
+      console.error('Error fetching players:', err);
+    }
+  };
+
+  const fetchPlayerAnalytics = useCallback(async (playerId: number) => {
+    try {
+      setPlayerLoading(true);
+      const data = await analyticsApi.getPlayerAnalytics(playerId, timeframe);
+      setPlayerAnalytics(data);
+    } catch (err) {
+      console.error('Error fetching player analytics:', err);
+      toast.error('Failed to load player analytics');
+    } finally {
+      setPlayerLoading(false);
+    }
+  }, [timeframe]);
 
   const fetchTrends = useCallback(async () => {
     try {
@@ -42,41 +92,15 @@ const Analytics: React.FC = () => {
     fetchTrends();
   }, [fetchTrends]);
 
-  const fetchAnalyticsData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await analyticsApi.getOverview();
-      setOverview(data);
-    } catch (err) {
-      console.error('Error fetching analytics:', err);
-      setError('Failed to load analytics data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
 
-  const fetchPlayers = async () => {
-    try {
-      const data = await playersApi.getAll();
-      setPlayers(data);
-    } catch (err) {
-      console.error('Error fetching players:', err);
+  useEffect(() => {
+    if (selectedPlayer) {
+      fetchPlayerAnalytics(selectedPlayer.id);
     }
-  };
-
-  const fetchPlayerAnalytics = async (playerId: number) => {
-    try {
-      setPlayerLoading(true);
-      const data = await analyticsApi.getPlayerAnalytics(playerId);
-      setPlayerAnalytics(data);
-    } catch (err) {
-      console.error('Error fetching player analytics:', err);
-      toast.error('Failed to load player analytics');
-    } finally {
-      setPlayerLoading(false);
-    }
-  };
+  }, [fetchPlayerAnalytics, selectedPlayer]);
 
   const handlePlayerSelect = (player: Player) => {
     setSelectedPlayer(player);
@@ -270,19 +294,41 @@ const Analytics: React.FC = () => {
             Analytics Dashboard
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Position-based performance insights and trends
+            Position-based performance insights and trends {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as 'daily' | 'weekly' | 'monthly')}
-            className="form-select"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Timeframe:
+            </label>
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              className="form-select min-w-[120px]"
+            >
+              <option value="lifetime">Lifetime</option>
+              <option value="1year">Last Year</option>
+              <option value="6months">Last 6 Months</option>
+              <option value="90days">Last 90 Days</option>
+              <option value="30days">Last 30 Days</option>
+              <option value="7days">Last 7 Days</option>
+            </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Trends:
+            </label>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as 'daily' | 'weekly' | 'monthly')}
+              className="form-select"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
           <button
             onClick={fetchAnalyticsData}
             className="btn btn-secondary"
@@ -366,7 +412,7 @@ const Analytics: React.FC = () => {
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Games Per Month
+              Games Per Month {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
             </h3>
           </div>
           <div className="card-body">
@@ -398,7 +444,7 @@ const Analytics: React.FC = () => {
             Player-Specific Analytics
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Select a player to view their detailed position-based performance analytics
+            Select a player to view their detailed position-based performance analytics {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
           </p>
         </div>
         <div className="card-body">
@@ -430,7 +476,7 @@ const Analytics: React.FC = () => {
                   {selectedPlayer.name}'s Performance
                 </h4>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Detailed position-based analytics and performance trends
+                  Detailed position-based analytics and performance trends {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
                 </p>
               </div>
 
@@ -444,7 +490,7 @@ const Analytics: React.FC = () => {
                   <div className="card">
                     <div className="card-header">
                       <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Monthly Performance
+                        Monthly Performance {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
                       </h4>
                     </div>
                     <div className="card-body">
@@ -460,7 +506,7 @@ const Analytics: React.FC = () => {
                   <div className="card">
                     <div className="card-header">
                       <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Position Distribution
+                        Position Distribution {timeframe !== 'lifetime' && `(${getTimeframeLabel(timeframe)})`}
                       </h4>
                     </div>
                     <div className="card-body">
@@ -487,7 +533,7 @@ const Analytics: React.FC = () => {
                   <div className="card lg:col-span-2">
                     <div className="card-header">
                       <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Recent Performance (Last 20 Games)
+                        Recent Performance (Last 20 Games{timeframe !== 'lifetime' ? ` - ${getTimeframeLabel(timeframe)}` : ''})
                       </h4>
                     </div>
                     <div className="card-body">

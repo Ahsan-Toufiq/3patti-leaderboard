@@ -5,17 +5,21 @@ import { z } from 'zod';
 
 const router = express.Router();
 
+// Helper function to handle optional strings (convert empty strings to undefined)
+const optionalString = (validator: z.ZodString) => 
+  z.preprocess((val) => val === '' ? undefined : val, validator.optional());
+
 // Validation schemas
 const createPlayerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
-  email: z.string().email('Invalid email').optional(),
-  avatar_url: z.string().url('Invalid URL').optional(),
+  email: optionalString(z.string().email('Invalid email')),
+  avatar_url: optionalString(z.string().url('Invalid URL')),
 });
 
 const updatePlayerSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long').optional(),
-  email: z.string().email('Invalid email').optional(),
-  avatar_url: z.string().url('Invalid URL').optional(),
+  email: optionalString(z.string().email('Invalid email')),
+  avatar_url: optionalString(z.string().url('Invalid URL')),
 });
 
 // GET /api/players - Get all players

@@ -98,8 +98,18 @@ const Players: React.FC = () => {
       return;
     }
 
+    // Validate email format only if provided
+    if (formData.email && formData.email.trim() && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(formData.email.trim())) {
+      toast.error('Please enter a valid email address or leave it empty');
+      return;
+    }
+
     try {
-      const newPlayer = await playersApi.create(formData);
+      const playerData = {
+        name: formData.name.trim(),
+        email: formData.email && formData.email.trim() ? formData.email.trim() : undefined, // Send undefined instead of empty string
+      };
+      const newPlayer = await playersApi.create(playerData);
       setPlayers([...players, newPlayer]);
       setFormData({ name: '', email: '' });
       setModalOpen(false);
@@ -118,8 +128,18 @@ const Players: React.FC = () => {
       return;
     }
 
+    // Validate email format only if provided
+    if (formData.email && formData.email.trim() && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(formData.email.trim())) {
+      toast.error('Please enter a valid email address or leave it empty');
+      return;
+    }
+
     try {
-      const updatedPlayer = await playersApi.update(editingPlayer.id, formData);
+      const playerData = {
+        name: formData.name.trim(),
+        email: formData.email && formData.email.trim() ? formData.email.trim() : undefined, // Send undefined instead of empty string
+      };
+      const updatedPlayer = await playersApi.update(editingPlayer.id, playerData);
       setPlayers(players.map(p => p.id === editingPlayer.id ? updatedPlayer : p));
       setFormData({ name: '', email: '' });
       setEditingPlayer(null);
@@ -576,12 +596,12 @@ const Players: React.FC = () => {
                 Email (Optional)
               </label>
               <input
-                type="email"
+                type="text"
                 id="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="form-input"
-                placeholder="Enter email address"
+                placeholder="Enter email address (optional)"
               />
             </div>
           </div>
