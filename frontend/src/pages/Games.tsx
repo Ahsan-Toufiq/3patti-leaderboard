@@ -481,29 +481,35 @@ const Games: React.FC = () => {
               )}
             </div>
 
-            {/* Scoring System Explanation */}
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <TrophyIcon className="h-5 w-5 text-amber-500" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                    How Scoring Works
-                  </h3>
-                  <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                    <p className="mb-2">Players earn points based on their finishing positions:</p>
-                    <ul className="list-disc list-inside space-y-1 mb-2">
-                      <li><strong>🏆 1st place:</strong> 10 points</li>
-                      <li><strong>🥈 2nd place:</strong> 5 points</li>
-                      <li><strong>🥉 3rd place:</strong> 3 points</li>
-                      <li><strong>4th place:</strong> 1 point</li>
-                    </ul>
-                    <p><strong>Consistency Bonus:</strong> Additional points based on average position - better consistency = more bonus points!</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+                         {/* Scoring System Explanation */}
+             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+               <div className="flex">
+                 <div className="flex-shrink-0">
+                   <TrophyIcon className="h-5 w-5 text-amber-500" />
+                 </div>
+                 <div className="ml-3">
+                   <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                     How Scoring Works
+                   </h3>
+                   <div className="mt-2 text-sm text-amber-700 dark:text-amber-300 space-y-3">
+                     <div>
+                       <p className="mb-2">Players earn points based on their finishing positions:</p>
+                       <ul className="list-disc list-inside space-y-1 mb-2">
+                         <li><strong>🏆 1st place:</strong> 10 points</li>
+                         <li><strong>🥈 2nd place:</strong> 5 points</li>
+                         <li><strong>🥉 3rd place:</strong> 3 points</li>
+                         <li><strong>4th place:</strong> 1 point</li>
+                       </ul>
+                     </div>
+                     <div className="bg-amber-100 dark:bg-amber-800/50 rounded p-2">
+                       <p className="font-semibold">🎯 Consistency Bonus Formula:</p>
+                       <p className="font-mono text-xs mt-1">(10 - Average Position) × Games Played ÷ 10</p>
+                       <p className="mt-1">Better average position + more games = higher bonus!</p>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             </div>
 
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex">

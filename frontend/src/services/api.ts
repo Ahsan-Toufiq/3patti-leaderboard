@@ -15,8 +15,8 @@ import {
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-  timeout: 10000,
+  baseURL: process.env.REACT_APP_API_URL || 'https://backend-production-6b09.up.railway.app',
+  timeout: 30000, // Increased timeout to 30 seconds for complex analytics queries
   headers: {
     'Content-Type': 'application/json',
   },
@@ -154,6 +154,7 @@ export const analyticsApi = {
 
   // Get player analytics
   getPlayerAnalytics: async (playerId: number, timeframe?: string): Promise<PlayerAnalytics> => {
+    console.log('API call: getPlayerAnalytics', { playerId, timeframe });
     const response = await api.get<ApiResponse<PlayerAnalytics>>(`/api/analytics/player/${playerId}`, {
       params: timeframe ? { timeframe } : {},
     });
@@ -199,6 +200,21 @@ export const analyticsApi = {
     }
     return response.data.data;
   },
+
+  // Get score progression over time for a player
+  getPlayerScoreTrend: async (playerId: number): Promise<any> => {
+    console.log('API call: getPlayerScoreTrend', { playerId });
+    const response = await api.get<ApiResponse<any>>(`/api/analytics/player/${playerId}/score-trend`);
+    if (!response.data.data) {
+      throw new Error('Player score trend not found');
+    }
+    return response.data.data;
+  },
+};
+
+export const getPositionsTimeline = async () => {
+  const response = await api.get('/api/analytics/positions-timeline');
+  return response.data;
 };
 
 // Health check API

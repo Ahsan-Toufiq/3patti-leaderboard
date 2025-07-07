@@ -115,86 +115,73 @@ router.get('/player/:id', async (req: Request, res: Response) => {
       });
     }
     
-    // Get monthly stats (with timeframe filter)
-    const monthlyStatsResult = await pool.query(`
+    // Get all player data in a single optimized query with CTE
+    const playerDataResult = await pool.query(`
+      WITH player_games AS (
+        SELECT 
+          pgr.*,
+          g.date,
+          TO_CHAR(g.date, 'YYYY-MM') as month
+        FROM player_game_results pgr
+        JOIN games g ON pgr.game_id = g.id
+        WHERE pgr.player_id = $1 ${dateFilter}
+      ),
+      monthly_stats AS (
+        SELECT 
+          month,
+          COUNT(*) as games_played,
+          SUM(CASE WHEN position = 1 THEN 1 ELSE 0 END) as games_won,
+          ROUND(AVG(position), 2) as avg_position,
+          MIN(position) as best_position
+        FROM player_games
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+      ),
+      position_distribution AS (
+        SELECT 
+          position,
+          COUNT(*) as count,
+          ROUND(COUNT(*)::decimal / (SELECT COUNT(*) FROM player_games) * 100, 2) as percentage
+        FROM player_games
+        GROUP BY position
+        ORDER BY position
+      ),
+      recent_performance AS (
+        SELECT 
+          date,
+          position,
+          game_id
+        FROM player_games
+        ORDER BY date DESC, game_id DESC
+        LIMIT 20
+      ),
+      performance_trends AS (
+        SELECT 
+          month as period,
+          ROUND(AVG(position), 2) as avg_position,
+          COUNT(*) as games_count,
+          SUM(CASE WHEN position = 1 THEN 1 ELSE 0 END) as wins_count
+        FROM player_games
+        GROUP BY month
+        ORDER BY month DESC
+      )
       SELECT 
-        TO_CHAR(g.date, 'YYYY-MM') as month,
-        COUNT(pgr.id) as games_played,
-        SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END) as games_won,
-        ROUND(AVG(pgr.position), 2) as avg_position,
-        MIN(pgr.position) as best_position
-      FROM player_game_results pgr
-      JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1 ${dateFilter}
-      GROUP BY TO_CHAR(g.date, 'YYYY-MM')
-      ORDER BY month DESC
-      LIMIT 12
+        (SELECT json_agg(row_to_json(monthly_stats.*)) FROM monthly_stats) as monthly_stats,
+        (SELECT json_agg(row_to_json(position_distribution.*)) FROM position_distribution) as position_distribution,
+        (SELECT json_agg(row_to_json(recent_performance.*)) FROM recent_performance) as recent_performance,
+        (SELECT json_agg(row_to_json(performance_trends.*)) FROM performance_trends) as performance_trends
     `, [id]);
     
-    // Get position distribution (with timeframe filter)
-    const positionDistResult = await pool.query(`
-      SELECT 
-        position,
-        COUNT(*) as count,
-        ROUND(COUNT(*)::decimal / (
-          SELECT COUNT(*) 
-          FROM player_game_results pgr2 
-          JOIN games g2 ON pgr2.game_id = g2.id 
-          WHERE pgr2.player_id = $1 ${dateFilter}
-        ) * 100, 2) as percentage
-      FROM player_game_results pgr
-      JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1 ${dateFilter}
-      GROUP BY position
-      ORDER BY position
-    `, [id]);
-    
-    // Get recent performance (last 20 games with timeframe filter)
-    const recentPerfResult = await pool.query(`
-      SELECT 
-        g.date,
-        pgr.position,
-        pgr.game_id
-      FROM player_game_results pgr
-      JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1 ${dateFilter}
-      ORDER BY g.date DESC, g.id DESC
-      LIMIT 20
-    `, [id]);
-    
-    // Get performance trends (with timeframe filter)
-    let trendsInterval = '6 months';
-    if (timeframe === '7days' || timeframe === '30days') {
-      trendsInterval = '30 days';
-    } else if (timeframe === '90days') {
-      trendsInterval = '90 days';
-    } else if (timeframe === '6months') {
-      trendsInterval = '6 months';
-    } else if (timeframe === '1year') {
-      trendsInterval = '12 months';
-    }
-    
-    const performanceTrendsResult = await pool.query(`
-      SELECT 
-        TO_CHAR(g.date, 'YYYY-MM') as period,
-        ROUND(AVG(pgr.position), 2) as avg_position,
-        COUNT(pgr.id) as games_count,
-        SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END) as wins_count
-      FROM player_game_results pgr
-      JOIN games g ON pgr.game_id = g.id
-      WHERE pgr.player_id = $1 ${dateFilter}
-        ${timeframe === 'lifetime' ? '' : `AND g.date >= CURRENT_DATE - INTERVAL '${trendsInterval}'`}
-      GROUP BY TO_CHAR(g.date, 'YYYY-MM')
-      ORDER BY period DESC
-    `, [id]);
+    const playerData = playerDataResult.rows[0];
     
     const analytics: PlayerAnalytics = {
       player_id: parseInt(id),
       player_name: playerResult.rows[0].name,
-      monthly_stats: monthlyStatsResult.rows,
-      position_distribution: positionDistResult.rows,
-      recent_performance: recentPerfResult.rows,
-      performance_trends: performanceTrendsResult.rows,
+      monthly_stats: playerData.monthly_stats || [],
+      position_distribution: playerData.position_distribution || [],
+      recent_performance: playerData.recent_performance || [],
+      performance_trends: playerData.performance_trends || [],
     };
     
     const response: ApiResponse<PlayerAnalytics> = {
@@ -494,6 +481,124 @@ router.get('/game/:id/scores', async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to fetch game scores',
     });
+  }
+});
+
+// GET /api/analytics/player/:id/score-trend - Get score progression over time for a player
+router.get('/player/:id/score-trend', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all games for this player ordered by date
+    const gamesResult = await pool.query(`
+      SELECT 
+        g.id as game_id,
+        g.date,
+        pgr.position,
+        g.location
+      FROM player_game_results pgr
+      JOIN games g ON pgr.game_id = g.id
+      WHERE pgr.player_id = $1
+      ORDER BY g.date ASC, g.id ASC
+    `, [id]);
+    
+    if (gamesResult.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          player_id: parseInt(id),
+          score_progression: []
+        }
+      });
+    }
+    
+    // Calculate cumulative score after each game
+    const scoreProgression = [];
+    
+    for (let i = 0; i < gamesResult.rows.length; i++) {
+      const game = gamesResult.rows[i];
+      
+      // Calculate cumulative score up to this game (inclusive)
+      const scoreResult = await pool.query(`
+        SELECT 
+          COUNT(pgr.id) as total_games,
+          SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END) as games_won,
+          ROUND(AVG(pgr.position), 2) as avg_position,
+          -- Calculate ranking score using same formula as leaderboard
+          (
+            SUM(CASE WHEN pgr.position = 1 THEN 10 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 2 THEN 5 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 3 THEN 3 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 4 THEN 1 ELSE 0 END) +
+            -- Consistency bonus: lower average position gets bonus
+            (10 - GREATEST(AVG(pgr.position), 1)) * COUNT(pgr.id) / 10.0
+          ) as cumulative_score
+        FROM player_game_results pgr
+        JOIN games g2 ON pgr.game_id = g2.id
+        WHERE pgr.player_id = $1 AND g2.date <= $2
+      `, [id, game.date]);
+      
+      const score = scoreResult.rows[0];
+      
+      scoreProgression.push({
+        game_number: i + 1,
+        game_id: game.game_id,
+        date: game.date,
+        location: game.location,
+        position_this_game: game.position,
+        cumulative_score: parseFloat(score.cumulative_score || '0'),
+        total_games: parseInt(score.total_games || '0'),
+        games_won: parseInt(score.games_won || '0'),
+        avg_position: parseFloat(score.avg_position || '0')
+      });
+    }
+    
+    const response: ApiResponse<any> = {
+      success: true,
+      data: {
+        player_id: parseInt(id),
+        score_progression: scoreProgression
+      }
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Get player score trend error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch player score trend',
+    });
+  }
+});
+
+// GET /api/analytics/positions-timeline - Get all players' positions for each game (chronologically)
+router.get('/positions-timeline', async (req, res) => {
+  try {
+    // Get all games with their results, ordered by date
+    const gamesResult = await pool.query(`
+      SELECT g.id as game_id, g.date, 
+        json_agg(json_build_object(
+          'player_id', p.id,
+          'player_name', p.name,
+          'position', pgr.position
+        ) ORDER BY pgr.position) as results
+      FROM games g
+      JOIN player_game_results pgr ON g.id = pgr.game_id
+      JOIN players p ON pgr.player_id = p.id
+      GROUP BY g.id, g.date
+      ORDER BY g.date ASC, g.id ASC
+    `);
+
+    const timeline = gamesResult.rows.map(row => ({
+      game_id: row.game_id,
+      date: row.date,
+      results: row.results
+    }));
+
+    res.json({ success: true, data: timeline });
+  } catch (error) {
+    console.error('Get positions timeline error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch positions timeline' });
   }
 });
 
