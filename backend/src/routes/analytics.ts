@@ -38,9 +38,21 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
       LIMIT $1
     `, [limit]);
     
+    // Convert numeric fields to proper types (PostgreSQL returns bigint as string)
+    const leaderboardData = result.rows.map(row => ({
+      ...row,
+      total_games: parseInt(row.total_games),
+      games_won: parseInt(row.games_won),
+      win_rate: parseFloat(row.win_rate),
+      avg_position: parseFloat(row.avg_position),
+      best_position: parseInt(row.best_position),
+      worst_position: parseInt(row.worst_position),
+      ranking_score: parseFloat(row.ranking_score)
+    }));
+    
     const response: ApiResponse<LeaderboardEntry[]> = {
       success: true,
-      data: result.rows,
+      data: leaderboardData,
     };
     
     res.json(response);
