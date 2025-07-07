@@ -402,4 +402,111 @@ router.get('/trends', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/analytics/game/:id/scores - Get cumulative scores for players up to this game
+router.get('/game/:id/scores', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the game date first
+    const gameResult = await pool.query(
+      'SELECT date FROM games WHERE id = $1',
+      [id]
+    );
+    
+    if (gameResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Game not found',
+      });
+    }
+    
+    const gameDate = gameResult.rows[0].date;
+    
+    // Get players who played in this specific game
+    const playersInGameResult = await pool.query(`
+      SELECT pgr.player_id, p.name as player_name, pgr.position
+      FROM player_game_results pgr
+      JOIN players p ON pgr.player_id = p.id
+      WHERE pgr.game_id = $1
+      ORDER BY pgr.position
+    `, [id]);
+    
+    // Calculate cumulative scores for each player up to this game date (inclusive)
+    const playerScores = [];
+    
+    for (const playerInGame of playersInGameResult.rows) {
+      const scoreResult = await pool.query(`
+        SELECT 
+          COUNT(pgr.id) as total_games,
+          SUM(CASE WHEN pgr.position = 1 THEN 1 ELSE 0 END) as games_won,
+          ROUND(AVG(pgr.position), 2) as avg_position,
+          -- Calculate ranking score using same formula as leaderboard
+          (
+            SUM(CASE WHEN pgr.position = 1 THEN 10 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 2 THEN 5 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 3 THEN 3 ELSE 0 END) + 
+            SUM(CASE WHEN pgr.position = 4 THEN 1 ELSE 0 END) +
+            -- Consistency bonus: lower average position gets bonus
+            (10 - GREATEST(AVG(pgr.position), 1)) * COUNT(pgr.id) / 10.0
+          ) as cumulative_score
+        FROM player_game_results pgr
+        JOIN games g ON pgr.game_id = g.id
+        WHERE pgr.player_id = $1 AND g.date <= $2
+      `, [playerInGame.player_id, gameDate]);
+      
+      const score = scoreResult.rows[0];
+      
+      playerScores.push({
+        player_id: playerInGame.player_id,
+        player_name: playerInGame.player_name,
+        current_position: playerInGame.position,
+        cumulative_score: parseFloat(score.cumulative_score || '0'),
+        total_games: parseInt(score.total_games || '0'),
+        games_won: parseInt(score.games_won || '0'),
+        avg_position: parseFloat(score.avg_position || '0'),
+        score_breakdown: {
+          first_place_points: await getPositionPoints(playerInGame.player_id, gameDate, 1),
+          second_place_points: await getPositionPoints(playerInGame.player_id, gameDate, 2),
+          third_place_points: await getPositionPoints(playerInGame.player_id, gameDate, 3),
+          fourth_place_points: await getPositionPoints(playerInGame.player_id, gameDate, 4),
+          consistency_bonus: parseFloat(score.cumulative_score || '0') - 
+            (await getPositionPoints(playerInGame.player_id, gameDate, 1) * 10 +
+             await getPositionPoints(playerInGame.player_id, gameDate, 2) * 5 +
+             await getPositionPoints(playerInGame.player_id, gameDate, 3) * 3 +
+             await getPositionPoints(playerInGame.player_id, gameDate, 4) * 1)
+        }
+      });
+    }
+    
+    const response: ApiResponse<any> = {
+      success: true,
+      data: {
+        game_id: parseInt(id),
+        game_date: gameDate,
+        player_scores: playerScores.sort((a, b) => b.cumulative_score - a.cumulative_score)
+      }
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Get game scores error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch game scores',
+    });
+  }
+});
+
+// Helper function to get position count for scoring breakdown
+async function getPositionPoints(playerId: number, gameDate: string, position: number): Promise<number> {
+  const result = await pool.query(`
+    SELECT COUNT(*) as count
+    FROM player_game_results pgr
+    JOIN games g ON pgr.game_id = g.id
+    WHERE pgr.player_id = $1 AND pgr.position = $2 AND g.date <= $3
+  `, [playerId, position, gameDate]);
+  
+  return parseInt(result.rows[0].count || '0');
+}
+
 export default router; 

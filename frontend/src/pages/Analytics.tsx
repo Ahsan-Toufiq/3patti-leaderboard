@@ -8,10 +8,37 @@ import {
   TrophyIcon
 } from '@heroicons/react/24/outline';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  Filler
+} from 'chart.js';
 import { toast } from 'react-toastify';
 import { analyticsApi, playersApi } from '../services/api';
 import { Player, PlayerAnalytics, AnalyticsOverview, TrendsData } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  Filler
+);
 
 // Helper function to get readable timeframe label
 const getTimeframeLabel = (timeframe: string): string => {

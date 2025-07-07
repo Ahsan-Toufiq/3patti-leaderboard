@@ -324,6 +324,49 @@ const Leaderboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Scoring System Explanation */}
+      <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <TrophyIcon className="h-6 w-6 text-amber-500 mt-1" />
+          </div>
+          <div className="ml-4">
+            <h3 className="text-lg font-medium text-amber-800 dark:text-amber-200 mb-2">
+              🏆 How Ranking Scores Work
+            </h3>
+            <div className="text-sm text-amber-700 dark:text-amber-300">
+              <p className="mb-3">Players earn points based on their finishing positions in each game:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">🏆</div>
+                  <div className="font-semibold">1st Place</div>
+                  <div className="text-yellow-800 dark:text-yellow-200 font-bold">10 points</div>
+                </div>
+                <div className="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">🥈</div>
+                  <div className="font-semibold">2nd Place</div>
+                  <div className="text-gray-800 dark:text-gray-200 font-bold">5 points</div>
+                </div>
+                <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">🥉</div>
+                  <div className="font-semibold">3rd Place</div>
+                  <div className="text-orange-800 dark:text-orange-200 font-bold">3 points</div>
+                </div>
+                <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold">4️⃣</div>
+                  <div className="font-semibold">4th Place</div>
+                  <div className="text-blue-800 dark:text-blue-200 font-bold">1 point</div>
+                </div>
+              </div>
+              <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
+                <p><strong>🎯 Consistency Bonus:</strong> Additional points based on your average position across all games. Better consistency = more bonus points!</p>
+                <p className="mt-1"><strong>📊 Final Score:</strong> Total position points + consistency bonus = your ranking score</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="card card-body text-center">

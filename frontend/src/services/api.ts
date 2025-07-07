@@ -190,6 +190,15 @@ export const analyticsApi = {
     const response = await gamesApi.getAll(1, limit);
     return response.data;
   },
+
+  // Get cumulative scores for a specific game
+  getGameScores: async (gameId: number): Promise<any> => {
+    const response = await api.get<ApiResponse<any>>(`/api/analytics/game/${gameId}/scores`);
+    if (!response.data.data) {
+      throw new Error('Game scores not found');
+    }
+    return response.data.data;
+  },
 };
 
 // Health check API

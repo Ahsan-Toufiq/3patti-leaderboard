@@ -66,9 +66,23 @@ const Games: React.FC = () => {
     fetchGames();
   }, [fetchGames]);
 
-  const viewGameDetails = (game: GameWithResults) => {
+  const viewGameDetails = async (game: GameWithResults) => {
     setSelectedGame(game);
     setShowGameModal(true);
+    setGameScores(null);
+    
+    // Fetch cumulative scores for this game
+    try {
+      setScoresLoading(true);
+      const { analyticsApi } = await import('../services/api');
+      const scores = await analyticsApi.getGameScores(game.id);
+      setGameScores(scores);
+    } catch (error) {
+      console.error('Error fetching game scores:', error);
+      toast.error('Failed to load cumulative scores');
+    } finally {
+      setScoresLoading(false);
+    }
   };
 
   const handleDeleteGame = async (id: number) => {
@@ -95,6 +109,8 @@ const Games: React.FC = () => {
 
   const [selectedGame, setSelectedGame] = useState<GameWithResults | null>(null);
   const [showGameModal, setShowGameModal] = useState(false);
+  const [gameScores, setGameScores] = useState<any | null>(null);
+  const [scoresLoading, setScoresLoading] = useState(false);
 
   const totalPages = Math.ceil(totalGames / gamesPerPage);
 
@@ -394,6 +410,101 @@ const Games: React.FC = () => {
               </div>
             )}
 
+            {/* Cumulative Scores Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Cumulative Scores (After This Game)
+              </label>
+              {scoresLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <LoadingSpinner />
+                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading cumulative scores...</span>
+                </div>
+              ) : gameScores ? (
+                <div className="space-y-3">
+                  {gameScores.player_scores.map((player: any, index: number) => (
+                    <div key={player.player_id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mr-3 ${
+                            index === 0 ? 'bg-yellow-500 text-white' :
+                            index === 1 ? 'bg-gray-400 text-white' :
+                            index === 2 ? 'bg-orange-500 text-white' :
+                            'bg-blue-500 text-white'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {player.player_name}
+                            </span>
+                            <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              player.current_position === 1 
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' 
+                                : player.current_position === 2 
+                                  ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                                  : player.current_position === 3 
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            }`}>
+                              #{player.current_position} this game
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {player.cumulative_score.toFixed(1)} pts
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {player.total_games} games • {player.games_won} wins
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 grid grid-cols-2 gap-2">
+                        <div>Avg Position: {player.avg_position.toFixed(1)}</div>
+                        <div>Score Details:</div>
+                        <div className="col-span-2 bg-gray-100 dark:bg-gray-600 rounded p-2 space-y-1">
+                          <div>🏆 1st place: {player.score_breakdown.first_place_points} × 10 = {player.score_breakdown.first_place_points * 10} pts</div>
+                          <div>🥈 2nd place: {player.score_breakdown.second_place_points} × 5 = {player.score_breakdown.second_place_points * 5} pts</div>
+                          <div>🥉 3rd place: {player.score_breakdown.third_place_points} × 3 = {player.score_breakdown.third_place_points * 3} pts</div>
+                          <div>4th place: {player.score_breakdown.fourth_place_points} × 1 = {player.score_breakdown.fourth_place_points} pts</div>
+                          <div>Consistency bonus: {player.score_breakdown.consistency_bonus.toFixed(1)} pts</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                  Unable to load cumulative scores
+                </div>
+              )}
+            </div>
+
+            {/* Scoring System Explanation */}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <TrophyIcon className="h-5 w-5 text-amber-500" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    How Scoring Works
+                  </h3>
+                  <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                    <p className="mb-2">Players earn points based on their finishing positions:</p>
+                    <ul className="list-disc list-inside space-y-1 mb-2">
+                      <li><strong>🏆 1st place:</strong> 10 points</li>
+                      <li><strong>🥈 2nd place:</strong> 5 points</li>
+                      <li><strong>🥉 3rd place:</strong> 3 points</li>
+                      <li><strong>4th place:</strong> 1 point</li>
+                    </ul>
+                    <p><strong>Consistency Bonus:</strong> Additional points based on average position - better consistency = more bonus points!</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
@@ -405,7 +516,7 @@ const Games: React.FC = () => {
                   </h3>
                   <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
                     <p>
-                      <strong>{selectedGame.results.find(r => r.position === 1)?.player_name}</strong> won this game by being the first to empty their hand. 
+                      <strong>{selectedGame.results.find(r => r.position === 1)?.player_name}</strong> won this game by finishing first. 
                       {selectedGame.results.length} players participated in this round of {selectedGame.game_type}.
                     </p>
                   </div>
