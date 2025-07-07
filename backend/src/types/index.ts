@@ -125,6 +125,7 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  meta?: any;
 }
 
 export interface PaginatedResponse<T> {

@@ -38,6 +38,10 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
       LIMIT $1
     `, [limit]);
     
+    // Get the actual total unique games count (not sum of player totals)
+    const totalGamesResult = await pool.query('SELECT COUNT(*) as total_unique_games FROM games');
+    const totalUniqueGames = parseInt(totalGamesResult.rows[0].total_unique_games);
+    
     // Convert numeric fields to proper types (PostgreSQL returns bigint as string)
     const leaderboardData = result.rows.map(row => ({
       ...row,
@@ -53,6 +57,9 @@ router.get('/leaderboard', async (req: Request, res: Response) => {
     const response: ApiResponse<LeaderboardEntry[]> = {
       success: true,
       data: leaderboardData,
+      meta: {
+        total_unique_games: totalUniqueGames
+      }
     };
     
     res.json(response);

@@ -7,6 +7,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const Leaderboard: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [totalUniqueGames, setTotalUniqueGames] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>('ranking_score');
@@ -16,8 +17,9 @@ const Leaderboard: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await analyticsApi.getLeaderboard(100, sortBy, sortOrder);
-      setLeaderboard(data);
+      const response = await analyticsApi.getLeaderboard(100, sortBy, sortOrder);
+      setLeaderboard(response.data);
+      setTotalUniqueGames(response.meta?.total_unique_games || 0);
     } catch (err) {
       console.error('Error fetching leaderboard:', err);
       setError('Failed to load leaderboard');
@@ -334,7 +336,7 @@ const Leaderboard: React.FC = () => {
         </div>
         <div className="card card-body text-center">
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
-            {leaderboard.reduce((sum, entry) => sum + Number(entry.total_games), 0)}
+            {totalUniqueGames}
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400">
             Total Games

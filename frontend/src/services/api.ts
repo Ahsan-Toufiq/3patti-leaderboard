@@ -142,11 +142,14 @@ export const analyticsApi = {
     limit: number = 50,
     sortBy: string = 'total_profit_loss',
     sortOrder: 'ASC' | 'DESC' = 'DESC'
-  ): Promise<LeaderboardEntry[]> => {
-    const response = await api.get<ApiResponse<LeaderboardEntry[]>>('/api/analytics/leaderboard', {
+  ): Promise<{ data: LeaderboardEntry[]; meta?: { total_unique_games: number } }> => {
+    const response = await api.get<ApiResponse<LeaderboardEntry[]> & { meta?: { total_unique_games: number } }>('/api/analytics/leaderboard', {
       params: { limit, sortBy, sortOrder },
     });
-    return response.data.data || [];
+    return {
+      data: response.data.data || [],
+      meta: response.data.meta
+    };
   },
 
   // Get player analytics
