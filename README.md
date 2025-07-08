@@ -17,7 +17,5 @@ A comprehensive web application for tracking 3 Patti card game results with Reac
 - Deployment: Vercel (Frontend) + Railway (Backend)
 
 ## Live Demo
-- Frontend: [Coming Soon]
+- Frontend: 3-patti.space
 - Backend API: https://backend-production-6b09.up.railway.app
-
-Built with ❤️ for 3 Patti enthusiasts!
